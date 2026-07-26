@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal, ArrowRight, UserPlus, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Terminal, ArrowRight, UserPlus, CheckCircle2, AlertTriangle, ShieldCheck, Mail } from 'lucide-react';
 
 const AREAS = [
   'SALIGRAMAM_SEC',
@@ -16,7 +16,7 @@ const AREAS = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'otp'
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -34,6 +34,9 @@ export default function LoginPage() {
     area: AREAS[0],
   });
 
+  // OTP State
+  const [otpValue, setOtpValue] = useState('');
+
   useEffect(() => {
     // Initialize mock database if needed
     if (typeof window !== 'undefined') {
@@ -47,6 +50,7 @@ export default function LoginPage() {
             email: 'hemant@ucw.app',
             password: 'password123',
             area: 'SALIGRAMAM_SEC',
+            avatar: null, // No avatar initially
           },
         ];
         localStorage.setItem('ucw_users_db', JSON.stringify(defaultUsers));
@@ -54,7 +58,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const handleRegister = (e) => {
+  const handleRegisterSubmit = (e) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -76,6 +80,24 @@ export default function LoginPage() {
         return;
       }
 
+      // Proceed to OTP mode instead of saving immediately
+      setSuccessMessage('VERIFICATION_CODE_SENT_TO_EMAIL');
+      setMode('otp');
+    }
+  };
+
+  const handleOtpVerify = (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    if (otpValue.length < 4) {
+      setErrorMessage('INVALID_OTP_CODE_ENTERED');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const usersDb = JSON.parse(localStorage.getItem('ucw_users_db') || '[]');
+      
       const newUser = {
         username: regForm.username.trim(),
         displayName: regForm.displayName.trim() || regForm.username.trim(),
@@ -83,17 +105,21 @@ export default function LoginPage() {
         email: regForm.email.trim(),
         password: regForm.password,
         area: regForm.area,
+        avatar: null,
       };
 
       usersDb.push(newUser);
       localStorage.setItem('ucw_users_db', JSON.stringify(usersDb));
-      localStorage.setItem('username', newUser.displayName);
-      localStorage.setItem('ucw_current_user', JSON.stringify(newUser));
 
-      setSuccessMessage('REGISTRATION_SUCCESSFUL. REDIRECTING...');
+      setSuccessMessage('REGISTRATION_COMPLETE. PLEASE_LOGIN.');
+      
       setTimeout(() => {
-        router.push(`/?user=${encodeURIComponent(newUser.displayName)}`);
-      }, 1000);
+        setMode('login');
+        setLoginIdentifier(newUser.username);
+        setLoginPassword('');
+        setSuccessMessage('');
+        setOtpValue('');
+      }, 2000);
     }
   };
 
@@ -123,10 +149,36 @@ export default function LoginPage() {
           router.push(`/?user=${encodeURIComponent(foundUser.displayName || foundUser.username)}`);
         }, 800);
       } else {
-        // Fallback for easy testing if no match
+        // Mock fallback login for testing
+        const fallbackUser = {
+          username: loginIdentifier.trim(),
+          displayName: loginIdentifier.trim(),
+          area: AREAS[0],
+          avatar: null
+        };
         localStorage.setItem('username', loginIdentifier.trim());
+        localStorage.setItem('ucw_current_user', JSON.stringify(fallbackUser));
         router.push(`/?user=${encodeURIComponent(loginIdentifier.trim())}`);
       }
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    // Mock Google Login
+    if (typeof window !== 'undefined') {
+      const googleUser = {
+        username: 'google_user',
+        displayName: 'Google User',
+        email: 'google@example.com',
+        area: AREAS[0],
+        avatar: null
+      };
+      localStorage.setItem('username', googleUser.displayName);
+      localStorage.setItem('ucw_current_user', JSON.stringify(googleUser));
+      setSuccessMessage('GOOGLE_AUTH_SUCCESS. INITIALIZING...');
+      setTimeout(() => {
+        router.push(`/?user=${encodeURIComponent(googleUser.displayName)}`);
+      }, 800);
     }
   };
 
@@ -163,18 +215,22 @@ export default function LoginPage() {
         {/* Header */}
         <div className="flex flex-col items-start mb-8 pb-4 border-b-2 border-white/20">
           <div className="w-10 h-10 bg-white flex items-center justify-center mb-4">
-            <Terminal className="w-6 h-6 text-black" />
+            {mode === 'otp' ? (
+               <ShieldCheck className="w-6 h-6 text-black" />
+            ) : (
+               <Terminal className="w-6 h-6 text-black" />
+            )}
           </div>
           <h1
             className="text-4xl sm:text-5xl font-black text-white glitch uppercase tracking-tighter leading-none"
-            data-text={mode === 'login' ? 'SYSTEM.ENTRY' : 'SYSTEM.REGISTER'}
+            data-text={mode === 'login' ? 'SYSTEM.ENTRY' : mode === 'register' ? 'SYSTEM.REGISTER' : 'SYSTEM.VERIFY'}
           >
-            {mode === 'login' ? 'SYSTEM.ENTRY' : 'SYSTEM.REGISTER'}
+            {mode === 'login' ? 'SYSTEM.ENTRY' : mode === 'register' ? 'SYSTEM.REGISTER' : 'SYSTEM.VERIFY'}
           </h1>
           <p className="font-mono text-xs mt-3 text-white/50 uppercase tracking-widest">
             {mode === 'login'
               ? '// initialize connection sequence'
-              : '// register new operator profile'}
+              : mode === 'register' ? '// register new operator profile' : '// await security override code'}
           </p>
         </div>
 
@@ -195,7 +251,7 @@ export default function LoginPage() {
 
         {/* Form Container */}
         <AnimatePresence mode="wait">
-          {mode === 'login' ? (
+          {mode === 'login' && (
             /* ────────────────── LOGIN FORM ────────────────── */
             <motion.form
               key="login-form"
@@ -244,6 +300,26 @@ export default function LoginPage() {
                 <ArrowRight className="w-5 h-5" />
               </button>
 
+              <div className="relative flex py-4 items-center">
+                <div className="flex-grow border-t border-white/20"></div>
+                <span className="flex-shrink-0 mx-4 text-white/50 text-xs font-mono uppercase">Or_Continue_With</span>
+                <div className="flex-grow border-t border-white/20"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-3 py-4 bg-white text-black border-2 border-white font-mono text-sm uppercase tracking-widest hover:bg-black hover:text-white transition-all cursor-pointer font-bold shadow-[4px_4px_0px_0px_rgba(255,255,255,0.3)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Sign In With Google
+              </button>
+
               <div className="pt-6 border-t border-white/20 text-center">
                 <button
                   type="button"
@@ -254,7 +330,9 @@ export default function LoginPage() {
                 </button>
               </div>
             </motion.form>
-          ) : (
+          )}
+
+          {mode === 'register' && (
             /* ────────────────── REGISTER FORM ────────────────── */
             <motion.form
               key="register-form"
@@ -262,7 +340,7 @@ export default function LoginPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
-              onSubmit={handleRegister}
+              onSubmit={handleRegisterSubmit}
               className="space-y-5"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -370,8 +448,8 @@ export default function LoginPage() {
                 type="submit"
                 className="brutalist-button w-full flex items-center justify-between mt-6 py-4"
               >
-                <span>Complete Registration</span>
-                <UserPlus className="w-5 h-5" />
+                <span>Verify with Email</span>
+                <Mail className="w-5 h-5" />
               </button>
 
               <div className="pt-6 border-t border-white/20 text-center">
@@ -381,6 +459,57 @@ export default function LoginPage() {
                   className="font-mono text-xs uppercase tracking-widest text-white/60 hover:text-white transition-colors"
                 >
                   [&lt;] ALREADY REGISTERED? LOGIN HERE
+                </button>
+              </div>
+            </motion.form>
+          )}
+
+          {mode === 'otp' && (
+            /* ────────────────── OTP FORM ────────────────── */
+            <motion.form
+              key="otp-form"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              onSubmit={handleOtpVerify}
+              className="space-y-6"
+            >
+              <div className="text-white/70 font-mono text-sm mb-4 leading-relaxed">
+                A verification code has been transmitted to <span className="text-white font-bold">{regForm.email}</span>.<br />
+                Please enter the sequence below to authorize this profile.
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-mono uppercase tracking-widest text-white/70">
+                  &gt;&nbsp;Verification_Code
+                </label>
+                <input
+                  type="text"
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value)}
+                  placeholder="X X X X X X"
+                  className="w-full px-4 py-5 bg-black border-2 border-white text-white font-mono text-2xl tracking-[0.5em] text-center
+                             placeholder-white/25 focus:outline-none focus:border-secondary transition-colors"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="brutalist-button w-full flex items-center justify-between mt-4 py-4"
+              >
+                <span>Confirm Authentication</span>
+                <CheckCircle2 className="w-5 h-5" />
+              </button>
+
+              <div className="pt-6 border-t border-white/20 text-center">
+                <button
+                  type="button"
+                  onClick={() => setMode('register')}
+                  className="font-mono text-xs uppercase tracking-widest text-white/60 hover:text-white transition-colors"
+                >
+                  [&lt;] CANCEL REGISTRATION SEQUENCE
                 </button>
               </div>
             </motion.form>

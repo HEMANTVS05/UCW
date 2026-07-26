@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Share2, Edit2, LogOut, Check, Terminal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const ProfileSection = ({ username }) => {
+const ProfileSection = ({ username, avatar }) => {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [bio, setBio] = useState('DESIGN IN MOTION / HACKER_ETHOS / V_2.0');
@@ -16,6 +16,8 @@ const ProfileSection = ({ username }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const isValidAvatar = avatar && avatar !== 'skipped';
+
   return (
     <div className="w-full h-full p-4 overflow-y-auto pb-24 custom-scrollbar">
       <div className="max-w-md mx-auto space-y-5">
@@ -26,10 +28,14 @@ const ProfileSection = ({ username }) => {
           <Terminal className="absolute top-2 right-2 w-24 h-24 text-black/5 pointer-events-none" />
 
           <div className="relative z-10 flex flex-col items-start border-b-4 border-black pb-5 mb-5">
-            {/* Initials avatar block — NO external image */}
-            <div className="w-20 h-20 bg-black text-white flex items-center justify-center
+            {/* Avatar block */}
+            <div className="w-24 h-24 bg-black text-white flex items-center justify-center overflow-hidden
                             font-black font-mono text-3xl border-4 border-black mb-4 select-none">
-              {username.substring(0, 2).toUpperCase()}
+              {isValidAvatar ? (
+                <img src={avatar} alt="Profile" className="w-full h-full object-cover grayscale" />
+              ) : (
+                username.substring(0, 2).toUpperCase()
+              )}
             </div>
 
             <p className="font-mono text-[9px] uppercase tracking-widest text-black/40 mb-1">
@@ -94,7 +100,10 @@ const ProfileSection = ({ username }) => {
           </button>
 
           <button
-            onClick={() => router.push('/login')}
+            onClick={() => {
+              localStorage.removeItem('ucw_current_user');
+              router.push('/login');
+            }}
             className="border-2 border-secondary bg-black text-secondary font-bold uppercase
                        tracking-widest flex flex-col items-center justify-center gap-2 py-5
                        hover:bg-secondary hover:text-black transition-all

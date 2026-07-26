@@ -3,15 +3,22 @@
 import React, { useState } from 'react';
 import { Search, UserSquare2 } from 'lucide-react';
 
-const Header = ({ username }) => {
+const Header = ({ username, avatar }) => {
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Validate avatar (ignore if it's the 'skipped' string)
+  const isValidAvatar = avatar && avatar !== 'skipped';
 
   return (
     <header className="px-4 py-3 mx-4 mt-4 z-20 flex items-center justify-between gap-4 brutalist-panel">
       {/* User ID */}
       <div className="flex items-center gap-3 cursor-pointer group shrink-0">
-        <div className="w-10 h-10 bg-white flex items-center justify-center group-hover:bg-secondary transition-colors">
-          <UserSquare2 className="w-6 h-6 text-black" />
+        <div className="w-10 h-10 bg-white flex items-center justify-center overflow-hidden group-hover:bg-secondary transition-colors border-2 border-transparent group-hover:border-white">
+          {isValidAvatar ? (
+            <img src={avatar} alt="Profile" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+          ) : (
+            <UserSquare2 className="w-6 h-6 text-black group-hover:text-white transition-colors" />
+          )}
         </div>
         <div className="hidden sm:block">
           <p className="font-mono text-[9px] text-white/40 uppercase tracking-widest">ID_</p>
