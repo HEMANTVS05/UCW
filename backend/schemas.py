@@ -12,6 +12,7 @@ class GoogleVerifyResponse(BaseModel):
     picture: Optional[str] = None
     sub: Optional[str] = None
     email_verified: bool = True
+    exists_in_db: bool = False
 
 class UserRegisterRequest(BaseModel):
     username: str

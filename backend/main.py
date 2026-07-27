@@ -56,11 +56,17 @@ def health_check():
 # 1. Google OAuth Token Verification Endpoint
 # ----------------------------------------------------
 @app.post("/api/auth/google-verify", response_model=schemas.GoogleVerifyResponse)
-def google_verify(payload: schemas.GoogleVerifyRequest):
+def google_verify(payload: schemas.GoogleVerifyRequest, db: Session = Depends(database.get_db)):
     if not payload.id_token:
         raise HTTPException(status_code=400, detail="id_token is required")
     
     verified_info = auth.verify_google_id_token(payload.id_token)
+    email = verified_info["email"].lower()
+
+    # Check if this email is already registered in PostgreSQL database
+    existing_user = db.query(models.User).filter(models.User.email.ilike(email)).first()
+    verified_info["exists_in_db"] = True if existing_user else False
+
     return verified_info
 
 # ----------------------------------------------------
@@ -152,30 +158,10 @@ def google_login(payload: schemas.GoogleVerifyRequest, db: Session = Depends(dat
     user = db.query(models.User).filter(models.User.email.ilike(email)).first()
     
     if not user:
-        base_username = (google_info.get("name") or email.split("@")[0]).replace(" ", "_").lower()
-        username = base_username
-        suffix = 1
-        while db.query(models.User).filter(models.User.username.ilike(username)).first():
-            username = f"{base_username}_{suffix}"
-            suffix += 1
-            
-        hashed_pwd = auth.get_password_hash(str(uuid.uuid4()))
-        
-        user = models.User(
-            user_id=uuid.uuid4(),
-            username=username,
-            display_name=google_info.get("name") or username,
-            email=email,
-            phone_number=None,
-            area="SALIGRAMAM_SEC",
-            password_hash=hashed_pwd,
-            google_id=google_info.get("sub"),
-            email_verified=True,
-            profile_photo=google_info.get("picture")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="EMAIL_NOT_REGISTERED"
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
 
     access_token = auth.create_access_token(data={"sub": user.username, "email": user.email})
     return {

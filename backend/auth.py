@@ -1,6 +1,7 @@
 import os
 import sys
 import datetime
+import httpx
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -56,46 +57,63 @@ def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] 
 
 def verify_google_id_token(token_str: str) -> dict:
     """
-    Verifies Google ID token against Google OAuth client.
+    Verifies Google ID token or OAuth access token against Google services.
     Returns user dict containing email, name, picture, sub.
     """
+    # 1. Try Google ID Token Verification
     try:
         id_info = id_token.verify_oauth2_token(
             token_str,
             google_requests.Request(),
             GOOGLE_CLIENT_ID if GOOGLE_CLIENT_ID else None
         )
-        
         email = id_info.get("email")
-        if not email:
-            raise HTTPException(status_code=400, detail="Google token does not contain email")
-            
-        return {
-            "email": email,
-            "name": id_info.get("name"),
-            "picture": id_info.get("picture"),
-            "sub": id_info.get("sub"),
-            "email_verified": id_info.get("email_verified", True)
-        }
-    except Exception as e:
-        # Fallback handling for frontend decode if client id mismatch during local testing
-        try:
-            import jwt as pyjwt
-            decoded = pyjwt.decode(token_str, options={"verify_signature": False})
-            if "email" in decoded:
+        if email:
+            return {
+                "email": email,
+                "name": id_info.get("name"),
+                "picture": id_info.get("picture"),
+                "sub": id_info.get("sub"),
+                "email_verified": id_info.get("email_verified", True)
+            }
+    except Exception:
+        pass
+
+    # 2. Try Google UserInfo API (for Access Tokens)
+    try:
+        resp = httpx.get("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": f"Bearer {token_str}"}, timeout=5.0)
+        if resp.status_code == 200:
+            info = resp.json()
+            if "email" in info:
                 return {
-                    "email": decoded["email"],
-                    "name": decoded.get("name"),
-                    "picture": decoded.get("picture"),
-                    "sub": decoded.get("sub"),
-                    "email_verified": True
+                    "email": info["email"],
+                    "name": info.get("name"),
+                    "picture": info.get("picture"),
+                    "sub": info.get("sub"),
+                    "email_verified": info.get("email_verified", True)
                 }
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
-        )
+    except Exception:
+        pass
+
+    # 3. Fallback pyjwt decode
+    try:
+        import jwt as pyjwt
+        decoded = pyjwt.decode(token_str, options={"verify_signature": False})
+        if "email" in decoded:
+            return {
+                "email": decoded["email"],
+                "name": decoded.get("name"),
+                "picture": decoded.get("picture"),
+                "sub": decoded.get("sub"),
+                "email_verified": True
+            }
+    except Exception:
+        pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Google OAuth Token"
+    )
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)) -> Optional[models.User]:
     if not token:
