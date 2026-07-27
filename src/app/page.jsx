@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
@@ -20,7 +20,7 @@ const RadarSection = dynamic(() => import('@/components/RadarSection'), {
   ),
 });
 
-export default function Home() {
+function MainDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -43,7 +43,7 @@ export default function Home() {
         setCurrentUser(user);
         
         // Show avatar setup if it's explicitly null (meaning they haven't uploaded or skipped yet)
-        if (user.avatar === null) {
+        if (user.avatar === null && user.profile_photo === null) {
           setShowAvatarSetup(true);
         }
       } else {
@@ -65,19 +65,11 @@ export default function Home() {
 
   const completeAvatarSetup = (avatarData) => {
     if (typeof window !== 'undefined' && currentUser) {
-      const updatedUser = { ...currentUser, avatar: avatarData || 'skipped' };
+      const updatedUser = { ...currentUser, avatar: avatarData || 'skipped', profile_photo: avatarData || 'skipped' };
       
       // Update current user session
       localStorage.setItem('ucw_current_user', JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
-      
-      // Update user in DB
-      const usersDb = JSON.parse(localStorage.getItem('ucw_users_db') || '[]');
-      const updatedDb = usersDb.map(u => 
-        u.username === currentUser.username ? { ...u, avatar: avatarData || 'skipped' } : u
-      );
-      localStorage.setItem('ucw_users_db', JSON.stringify(updatedDb));
-      
       setShowAvatarSetup(false);
     }
   };
@@ -93,7 +85,7 @@ export default function Home() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="brutalist-panel p-8 w-full max-w-md flex flex-col items-center text-center z-10 bg-black"
+          className="brutalist-panel p-8 w-full max-w-md flex flex-col items-center text-center z-10 bg-black border-2 border-white"
         >
           <Camera className="w-8 h-8 text-white mb-4" />
           <h1 className="text-2xl font-black text-white glitch uppercase tracking-tighter mb-2" data-text="PROFILE_IMAGE_UPLOAD">PROFILE_IMAGE_UPLOAD</h1>
@@ -163,16 +155,24 @@ export default function Home() {
 
       {/* Main UI */}
       <div className="flex-1 flex flex-col z-10 relative h-full">
-        <Header username={currentUser?.displayName || currentUser?.username || 'OPERATOR'} avatar={currentUser?.avatar} />
+        <Header username={currentUser?.display_name || currentUser?.username || 'OPERATOR'} avatar={currentUser?.profile_photo || currentUser?.avatar} />
 
         <main className="flex-1 overflow-hidden relative">
           {activeTab === 'radar' && <RadarSection currentUser={currentUser} />}
           {activeTab === 'chat' && <ChatSection />}
-          {activeTab === 'profile' && <ProfileSection username={currentUser?.displayName || currentUser?.username} avatar={currentUser?.avatar} />}
+          {activeTab === 'profile' && <ProfileSection username={currentUser?.display_name || currentUser?.username} avatar={currentUser?.profile_photo || currentUser?.avatar} />}
         </main>
 
         <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="h-screen w-full bg-black text-white font-mono flex items-center justify-center">LOADING_SYSTEM...</div>}>
+      <MainDashboard />
+    </Suspense>
   );
 }
