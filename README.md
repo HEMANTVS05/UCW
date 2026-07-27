@@ -1,77 +1,93 @@
-# Nexus Urban Control Warfare (UCW) - Authentication & Dashboard
+# Nexus Urban Control Warfare (UCW) - Social & Networking Platform
 
-A full-stack application built with **Next.js 16 (React 19)** frontend, **Python FastAPI** backend microservice, **PostgreSQL** database storage, and **Google OAuth 2.0 Identity Authentication**.
+A full-stack social and networking web application built with **Next.js (App Router)**, **Python FastAPI** backend microservice, **PostgreSQL** database storage, and **Google OAuth 2.0 Identity Authentication**.
 
 ---
 
-## 🌟 Key Features & Accomplishments
+## 🌟 Key Features
 
-1. **Python FastAPI Backend Microservice (`backend/`)**:
-   - Asynchronous Python FastAPI application connected to PostgreSQL database (`NexusDB`).
-   - CORS Middleware configured for local and production web clients.
-   - Secure password hashing using `bcrypt`.
-   - JWT Access Token generation & verification.
-   - Google ID Token verification with Google API public keys (`google-auth`).
+1. **Clean Next.js App Router Navigation**:
+   - **`/` (Radar Home)**: Interactive sector map powered by Leaflet & CartoDB displaying nearby registered operators.
+   - **`/chats` (Encrypted Comms)**: Real-time active chat channels with connected operators.
+   - **`/profile` (Identity & Profile)**: Complete user profile card, bio, skills badges, interests badges, and interactive profile editing modal.
+   - **`/user/[username]`**: Public operator profile page.
+   - **`/login` & `/register`**: Dedicated brutalist cyberpunk authentication routes.
 
-2. **PostgreSQL Database Storage (`users` table)**:
-   - Full user persistence in PostgreSQL database (`NexusDB`).
-   - Auto-creates/syncs columns (`user_id` UUID, `username`, `display_name`, `email`, `phone_number`, `area`, `password_hash`, `google_id`, `email_verified`, `created_at`).
+2. **Complete User Profile Editing & Persistence**:
+   - Persists all profile updates directly into PostgreSQL with no hardcoded dummy data.
+   - **Editable Fields**: Display Name, Bio, Area Dropdown (`SALIGRAMAM_SEC`, `PORUR_SEC`, `MADIPAKKAM_SEC`, `CHENNAI_CENTRAL`, `VELACHERY_SEC`, `ADYAR_SEC`), Skills, Interests, Phone Number, Profile Picture, Banner Picture.
+   - Pre-fills all inputs with existing database records upon opening the Edit Profile modal.
 
-3. **Dedicated Authentication Routes**:
-   - **`/register` (Registration Page)**:
-     - Includes **Google Email Verification** via Google OAuth 2.0 Popup.
-     - Collects operator details (Username, Display Name, Phone Number, Sector/Area, Password).
-     - Removed standalone OTP code modal/dialog box.
-     - Submits profile to FastAPI `POST /api/auth/register` and stores user directly in PostgreSQL.
-   - **`/login` (Login Page)**:
-     - **Dual Authentication**:
-       1. **Log in with Email/Username & Password** via FastAPI `POST /api/auth/login`.
-       2. **Log in with Google** via FastAPI `POST /api/auth/google-login`.
+3. **Strict File Upload Engine**:
+   - **`POST /api/upload/image`**: Handles image file uploads (`.jpg`, `.jpeg`, `.png`, `.webp`) sent via multipart FormData.
+   - Files are saved to `backend/uploads/` on the server disk and served publicly via `FastAPI StaticFiles`.
+   - Relative URL paths (e.g., `/uploads/<uuid>.jpg`) are persisted in PostgreSQL (`profile_photo` & `banner_photo` columns).
 
-4. **Brutalist Cyberpunk UI & Visual Excellence**:
-   - Cyberpunk brutalist design aesthetic using Vanilla Tailwind CSS & Framer Motion.
-   - Dynamic Google Identity Services SDK (`https://accounts.google.com/gsi/client`) rendering native Google authentication popups.
+4. **App-Wide Profile Picture & Avatar Display**:
+   - Automatic image formatting across all UI components:
+     - Top Navigation Header & Operator Search Dropdown
+     - Radar Sector Operator Cards
+     - Connected Channels & Conversation Headers
+     - Public User Profile Pages
+
+5. **Python FastAPI Backend Microservice (`backend/`)**:
+   - Connected to PostgreSQL database using SQLAlchemy.
+   - Auto-migrates database schema on startup via `verify_all_tables.py` (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
+   - Password hashing with `bcrypt` & JWT Token authentication.
+   - Google ID Token verification with Google API public keys.
 
 ---
 
 ## 📁 Project Structure
 
 ```text
+.
 ├── backend/
-│   ├── main.py          # FastAPI server routes & app entrypoint
-│   ├── auth.py          # JWT, bcrypt hashing & Google ID token verification
-│   ├── database.py      # SQLAlchemy PostgreSQL database session engine
-│   ├── models.py        # SQLAlchemy User database model
-│   ├── schemas.py       # Pydantic request & response validation schemas
-│   └── requirements.txt # Python backend dependencies
+│   ├── main.py              # FastAPI server routes, static file mounts & app entrypoint
+│   ├── auth.py              # JWT, bcrypt hashing & Google ID token verification
+│   ├── database.py          # SQLAlchemy PostgreSQL database session engine
+│   ├── models.py            # SQLAlchemy database models (User, Connection, Notification)
+│   ├── schemas.py           # Pydantic request & response validation schemas
+│   ├── verify_all_tables.py # PostgreSQL database schema auto-patching script
+│   ├── migrate_db.py        # Database creation and column migration script
+│   ├── uploads/             # Server disk storage for uploaded profile & banner images
+│   ├── .gitignore           # Backend gitignore rules
+│   └── requirements.txt     # Python backend dependencies
 ├── src/
 │   ├── app/
-│   │   ├── login/       # Dedicated Login Route (/login)
+│   │   ├── chats/           # Dedicated Chats Route (/chats)
 │   │   │   └── page.jsx
-│   │   ├── register/    # Dedicated Registration Route (/register)
+│   │   ├── profile/         # Dedicated Profile Route (/profile)
 │   │   │   └── page.jsx
-│   │   ├── page.jsx     # Main Dashboard Route (/)
-│   │   └── globals.css  # Global Tailwind styles & brutalist UI tokens
-│   └── components/      # UI Header, Navbar, Radar, Chat, Profile components
-├── .env                 # Environment secrets (ignored by git)
-├── .env.example         # Sample environment configuration template
-└── .gitignore           # Git ignore configuration
+│   │   ├── user/[username]/ # Public User Profile Route (/user/[username])
+│   │   │   └── page.jsx
+│   │   ├── login/           # Dedicated Login Route (/login)
+│   │   │   └── page.jsx
+│   │   ├── register/        # Dedicated Registration Route (/register)
+│   │   │   └── page.jsx
+│   │   ├── page.jsx         # Main Radar Dashboard Route (/)
+│   │   ├── layout.js        # Root layout with suppressHydrationWarning
+│   │   └── globals.css      # Tailwind CSS & brutalist UI tokens
+│   └── components/          # UI Header, Navbar, Radar, Chat, Profile components
+├── .env                     # Environment secrets (ignored by git)
+├── .env.example             # Sample environment configuration template
+└── .gitignore               # Root gitignore rules
 ```
 
 ---
 
-## 🛠️ Environment Configuration Setup
+## 🛠️ Environment Setup
 
-Copy `.env.example` to create your local `.env` file:
+1. Copy `.env.example` to create your local `.env` file:
 
 ```bash
 cp .env.example .env
 ```
 
-### Sample `.env` Values:
+2. Environment Configuration (`.env`):
 
 ```env
-# Google OAuth Client ID (From https://console.cloud.google.com/apis/credentials)
+# Google OAuth Client ID
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
 
 # Backend API URL
@@ -84,13 +100,9 @@ DB_USER=postgres
 DB_PASSWORD=root
 DB_NAME=NexusDB
 
-# Security & Secret Keys
-JWT_SECRET=supersecretjwtkey_whatsapp_demo_2026
-JWT_REFRESH_SECRET=supersecretrefreshkey_whatsapp_demo_2026
-
-# Microservice Endpoints
-GO_STORAGE_URL=http://localhost:8081
-PORT=8000
+# JWT Secrets
+JWT_SECRET=supersecretjwtkey_ucw_2026
+JWT_REFRESH_SECRET=supersecretrefreshkey_ucw_2026
 ```
 
 ---
@@ -114,54 +126,48 @@ pip install -r backend/requirements.txt
 npm install
 ```
 
-### 3. Run FastAPI Backend Server (Terminal 1)
-From the project root directory:
+### 3. Run Database Auto-Patch Script
+```bash
+python backend/verify_all_tables.py
+```
+
+### 4. Run FastAPI Backend Server (Terminal 1)
 ```bash
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-> Verify server status by visiting `http://localhost:8000/api/health`.
+> Verify server health by visiting `http://localhost:8000/api/health`.
 
-### 4. Run Next.js Frontend Server (Terminal 2)
-From the project root directory:
+### 5. Run Next.js Frontend Server (Terminal 2)
 ```bash
 npm run dev
 ```
 
-### 5. Access the Web App
-Open your browser and navigate to:
-- **Registration Page**: `http://localhost:3000/register`
-- **Login Page**: `http://localhost:3000/login`
-- **Main Dashboard**: `http://localhost:3000/`
+### 6. Access Application Routes
+- **Radar Home**: `http://localhost:3000/`
+- **Chats & Comms**: `http://localhost:3000/chats`
+- **Profile & Edit Modal**: `http://localhost:3000/profile`
+- **Login**: `http://localhost:3000/login`
+- **Register**: `http://localhost:3000/register`
 
 ---
 
-## 🔌 API Endpoints Summary
+## 🔌 Key API Endpoints
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Backend server health check |
-| `POST` | `/api/auth/google-verify` | Verifies Google OAuth ID token & returns email profile |
-| `POST` | `/api/auth/register` | Registers new user in PostgreSQL `users` table |
-| `POST` | `/api/auth/login` | Authenticates existing user by Username/Email + Password |
-| `POST` | `/api/auth/google-login` | Authenticates existing or new user via Google OAuth |
-| `GET` | `/api/auth/me` | Fetches current logged-in user profile from JWT header |
+| `GET` | `/api/health` | Backend health check |
+| `POST` | `/api/auth/register` | Registers new user in PostgreSQL |
+| `POST` | `/api/auth/login` | Log in via Username/Email & Password |
+| `POST` | `/api/auth/google-login` | Log in via Google OAuth 2.0 |
+| `GET` | `/api/auth/me` | Returns logged-in user profile from JWT token |
+| `PUT` | `/api/users/profile` | Updates user bio, display name, area, phone, skills, interests, photos |
+| `POST` | `/api/upload/image` | Uploads profile/banner image file to `backend/uploads/` |
+| `GET` | `/api/connections/list` | Fetches accepted connection channels |
+| `GET` | `/api/connections/pending` | Fetches pending connection requests |
+| `POST` | `/api/connections/request` | Dispatches connection request |
+| `POST` | `/api/connections/accept` | Accepts connection request |
 
 ---
 
-## 🛡️ Database Schema (`users` table in `NexusDB`)
-
-```sql
-CREATE TABLE users (
-    user_id UUID PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    display_name VARCHAR(100),
-    email VARCHAR(100) UNIQUE,
-    phone_number VARCHAR(20),
-    area VARCHAR(100),
-    password_hash VARCHAR(255),
-    google_id VARCHAR(255),
-    profile_photo VARCHAR(255),
-    email_verified BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+## 📄 License
+This project is licensed under the MIT License.

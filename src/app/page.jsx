@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { Camera, ImagePlus, ArrowRight, SkipForward } from 'lucide-react';
 import Header from '@/components/Header';
 import Navbar from '@/components/Navbar';
-import ChatSection from '@/components/ChatSection';
-import ProfileSection from '@/components/ProfileSection';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Dynamically import RadarSection with SSR disabled for Leaflet map support
 const RadarSection = dynamic(() => import('@/components/RadarSection'), {
@@ -20,15 +20,10 @@ const RadarSection = dynamic(() => import('@/components/RadarSection'), {
   ),
 });
 
-function MainDashboard() {
+export default function HomePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('radar');
   const [mounted, setMounted] = useState(false);
-  
-  // Avatar Setup State
   const [showAvatarSetup, setShowAvatarSetup] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const fileInputRef = useRef(null);
@@ -37,17 +32,33 @@ function MainDashboard() {
     setMounted(true);
     if (typeof window !== 'undefined') {
       const storedUserData = localStorage.getItem('ucw_current_user');
-      
+      const token = localStorage.getItem('ucw_access_token');
+
       if (storedUserData) {
-        const user = JSON.parse(storedUserData);
-        setCurrentUser(user);
-        
-        // Show avatar setup if it's explicitly null (meaning they haven't uploaded or skipped yet)
-        if (user.avatar === null && user.profile_photo === null) {
-          setShowAvatarSetup(true);
-        }
-      } else {
+        try {
+          const user = JSON.parse(storedUserData);
+          setCurrentUser(user);
+          if (user.avatar === null && user.profile_photo === null) {
+            setShowAvatarSetup(true);
+          }
+        } catch (e) {}
+      } else if (!token) {
         router.push('/login');
+        return;
+      }
+
+      if (token) {
+        fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) {
+              setCurrentUser(data);
+              localStorage.setItem('ucw_current_user', JSON.stringify(data));
+            }
+          })
+          .catch((err) => console.error('Error syncing user:', err));
       }
     }
   }, [router]);
@@ -66,8 +77,6 @@ function MainDashboard() {
   const completeAvatarSetup = (avatarData) => {
     if (typeof window !== 'undefined' && currentUser) {
       const updatedUser = { ...currentUser, avatar: avatarData || 'skipped', profile_photo: avatarData || 'skipped' };
-      
-      // Update current user session
       localStorage.setItem('ucw_current_user', JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
       setShowAvatarSetup(false);
@@ -79,57 +88,66 @@ function MainDashboard() {
   if (showAvatarSetup && currentUser) {
     return (
       <div className="h-screen w-full bg-black flex flex-col items-center justify-center relative p-4">
-        <div className="absolute inset-0 pointer-events-none opacity-[0.08]"
-             style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-        
-        <motion.div 
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.08]"
+          style={{
+            backgroundImage:
+              'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }}
+        />
+
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="brutalist-panel p-8 w-full max-w-md flex flex-col items-center text-center z-10 bg-black border-2 border-white"
         >
           <Camera className="w-8 h-8 text-white mb-4" />
-          <h1 className="text-2xl font-black text-white glitch uppercase tracking-tighter mb-2" data-text="PROFILE_IMAGE_UPLOAD">PROFILE_IMAGE_UPLOAD</h1>
+          <h1
+            className="text-2xl font-black text-white glitch uppercase tracking-tighter mb-2"
+            data-text="PROFILE_IMAGE_UPLOAD"
+          >
+            PROFILE_IMAGE_UPLOAD
+          </h1>
           <p className="font-mono text-xs text-white/50 mb-8 uppercase tracking-widest">// initialize operator visual id</p>
-          
-          <div 
-            className="w-40 h-40 border-2 border-white mb-8 flex items-center justify-center cursor-pointer group relative overflow-hidden bg-white/5"
+
+          <div
             onClick={() => fileInputRef.current?.click()}
+            className="w-32 h-32 bg-white/5 border-2 border-dashed border-white flex flex-col items-center justify-center cursor-pointer hover:border-secondary transition-colors mb-6 relative overflow-hidden group"
           >
             {avatarPreview ? (
               <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
             ) : (
-              <ImagePlus className="w-10 h-10 text-white/30 group-hover:text-white transition-colors" />
+              <>
+                <ImagePlus className="w-8 h-8 text-white/40 group-hover:text-white transition-colors mb-2" />
+                <span className="font-mono text-[10px] text-white/40 uppercase">SELECT IMAGE</span>
+              </>
             )}
-            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <span className="text-white font-mono text-xs uppercase font-bold tracking-widest">
-                {avatarPreview ? 'CHANGE_IMG' : 'SELECT_IMG'}
-              </span>
-            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              accept="image/*"
+              className="hidden"
+            />
           </div>
-          
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageChange} 
-            accept="image/*" 
-            className="hidden" 
-          />
 
-          <div className="flex flex-col w-full gap-4">
+          <div className="flex flex-col w-full gap-3 font-mono">
+            {avatarPreview && (
+              <button
+                onClick={() => completeAvatarSetup(avatarPreview)}
+                className="brutalist-button py-3 w-full text-xs font-bold uppercase flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>CONFIRM IDENTIFIER</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
             <button
-              onClick={() => completeAvatarSetup(avatarPreview)}
-              disabled={!avatarPreview}
-              className={`brutalist-button w-full flex items-center justify-center gap-2 py-4 ${!avatarPreview ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => completeAvatarSetup('skipped')}
+              className="px-4 py-2 border border-white/20 text-white/40 hover:text-white text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Save & Continue</span>
-              <ArrowRight className="w-5 h-5" />
-            </button>
-            
-            <button
-              onClick={() => completeAvatarSetup(null)}
-              className="text-white/60 font-mono text-xs uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2 py-2"
-            >
-              <span>Skip for now</span>
+              <span>SKIP INITIALIZATION</span>
               <SkipForward className="w-4 h-4" />
             </button>
           </div>
@@ -150,29 +168,18 @@ function MainDashboard() {
         }}
       />
 
-      {/* Scanline overlay */}
-      <div className="absolute inset-0 pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJ0cmFuc3BhcmVudCIvPgo8bGluZSB4MT0iMCIgeTE9IjIiIHgyPSI0IiB5Mj0iMiIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDUpIiBzdHJva2Utd2lkdGg9IjEiLz4KPC9zdmc+')] z-50 mix-blend-overlay" />
-
-      {/* Main UI */}
       <div className="flex-1 flex flex-col z-10 relative h-full">
-        <Header username={currentUser?.display_name || currentUser?.username || 'OPERATOR'} avatar={currentUser?.profile_photo || currentUser?.avatar} />
+        <Header
+          username={currentUser?.display_name || currentUser?.username || 'OPERATOR'}
+          avatar={currentUser?.profile_photo || currentUser?.avatar}
+        />
 
         <main className="flex-1 overflow-hidden relative">
-          {activeTab === 'radar' && <RadarSection currentUser={currentUser} />}
-          {activeTab === 'chat' && <ChatSection />}
-          {activeTab === 'profile' && <ProfileSection username={currentUser?.display_name || currentUser?.username} avatar={currentUser?.profile_photo || currentUser?.avatar} />}
+          <RadarSection currentUser={currentUser} />
         </main>
 
-        <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <Navbar />
       </div>
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense fallback={<div className="h-screen w-full bg-black text-white font-mono flex items-center justify-center">LOADING_SYSTEM...</div>}>
-      <MainDashboard />
-    </Suspense>
   );
 }

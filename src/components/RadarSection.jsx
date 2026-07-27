@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radar, ChevronDown, CheckCircle2, UserPlus } from 'lucide-react';
+import { Radar, ChevronDown, CheckCircle2, UserPlus, Eye } from 'lucide-react';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const customIcon = typeof window !== 'undefined' ? new L.DivIcon({
   html: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -26,21 +29,6 @@ const LOCATIONS = [
   { id: 'ADYAR_SEC',      name: 'ADYAR_SEC',      lat: 13.0033, lng: 80.2555 },
 ];
 
-const MOCK_USERS = {
-  SALIGRAMAM_SEC: [
-    { id: 'u1', name: 'RAHUL_X',   lat: 13.0580, lng: 80.1975, avatar: null },
-    { id: 'u2', name: 'PRIYA_0',   lat: 13.0560, lng: 80.1990, avatar: null },
-  ],
-  PORUR_SEC: [
-    { id: 'u3', name: 'KARTHIK_9', lat: 13.0340, lng: 80.1570, avatar: null },
-    { id: 'u4', name: 'DIVYA_V',   lat: 13.0320, lng: 80.1590, avatar: null },
-  ],
-  MADIPAKKAM_SEC: [
-    { id: 'u5', name: 'SANJAY_M',  lat: 12.9675, lng: 80.1960, avatar: null },
-    { id: 'u6', name: 'ANITHA_Z',  lat: 12.9650, lng: 80.1980, avatar: null },
-  ],
-};
-
 function FlyTo({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
@@ -50,7 +38,7 @@ function FlyTo({ center, zoom }) {
 }
 
 const RadarSection = ({ currentUser }) => {
-  // Default to user's registered area if available, else first location
+  const router = useRouter();
   const defaultArea = LOCATIONS.find(loc => loc.id === currentUser?.area) || LOCATIONS[0];
   
   const [selectedArea, setSelectedArea] = useState(defaultArea);
@@ -59,24 +47,56 @@ const RadarSection = ({ currentUser }) => {
   const [mapCenter, setMapCenter]       = useState([defaultArea.lat, defaultArea.lng]);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Scan immediately on mount for the default area
   useEffect(() => {
     handleAreaSelect(defaultArea);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleAreaSelect = (loc) => {
+  const handleAreaSelect = async (loc) => {
     setSelectedArea(loc);
     setMapCenter([loc.lat, loc.lng]);
     setFoundUsers([]);
     setIsScanning(true);
     setShowDropdown(false);
-    setTimeout(() => {
+
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('ucw_access_token') : null;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // Search real registered users from backend database
+      const res = await fetch(`${API_BASE_URL}/api/users/suggestions`, { headers });
+      if (res.ok) {
+        const usersData = await res.json();
+        
+        // Attach location coordinates around selected sector
+        const mappedUsers = usersData.map((user, idx) => ({
+          id: user.user_id,
+          username: user.username,
+          name: user.display_name || user.username,
+          area: user.area || loc.name,
+          lat: loc.lat + (idx % 2 === 0 ? 0.0015 * (idx + 1) : -0.0012 * (idx + 1)),
+          lng: loc.lng + (idx % 2 === 0 ? -0.0012 * (idx + 1) : 0.0018 * (idx + 1)),
+          avatar: user.profile_photo
+        }));
+        
+        setTimeout(() => {
+          setIsScanning(false);
+          setFoundUsers(mappedUsers);
+        }, 800);
+      } else {
+        setIsScanning(false);
+      }
+    } catch (err) {
+      console.error('Radar scan error:', err);
       setIsScanning(false);
-      setFoundUsers(MOCK_USERS[loc.id] || [
-        // Mock fallback if area not in hardcoded list
-        { id: Math.random().toString(), name: 'OPERATOR_X', lat: loc.lat + 0.001, lng: loc.lng + 0.001, avatar: null }
-      ]);
-    }, 1500);
+    }
+  };
+
+  const formatAvatarUrl = (url) => {
+    if (!url || url === 'skipped') return null;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
   };
 
   return (
@@ -95,10 +115,10 @@ const RadarSection = ({ currentUser }) => {
               onClick={() => setShowDropdown(!showDropdown)}
               className="w-full bg-white text-black font-bold uppercase tracking-widest flex items-center justify-between px-4 py-3 border-2 border-white cursor-pointer"
             >
-              <span className="truncate">MUTUALS NEAR {selectedArea.name}</span>
+              <span className="truncate">OPERATORS NEAR {selectedArea.name}</span>
               <ChevronDown className={`w-5 h-5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
-            
+
             <AnimatePresence>
               {showDropdown && (
                 <motion.div 
@@ -182,10 +202,10 @@ const RadarSection = ({ currentUser }) => {
         </AnimatePresence>
       </div>
 
-      {/* ─── Mutuals List ──────────────────────────────────────── */}
+      {/* ─── Real Registered Operators List ──────────────────────────────────────── */}
       <div className="flex-1 min-h-[200px]">
         <h3 className="font-mono text-sm uppercase tracking-widest text-white/50 mb-4 border-b border-white/20 pb-2">
-          [ {isScanning ? 'SCANNING_AREA...' : `${foundUsers.length}_DETECTED`} ]
+          [ {isScanning ? 'SCANNING_SECTOR...' : `${foundUsers.length}_REGISTERED_OPERATORS_DETECTED`} ]
         </h3>
         
         {isScanning ? (
@@ -198,29 +218,32 @@ const RadarSection = ({ currentUser }) => {
           <div className="flex flex-col gap-4">
             {foundUsers.length === 0 ? (
               <div className="p-8 text-center border border-white/20 bg-white/5 text-white/50 font-mono text-xs uppercase">
-                NO_MUTUALS_FOUND_IN_THIS_SECTOR
+                NO_REGISTERED_OPERATORS_FOUND_IN_SECTOR
               </div>
             ) : (
               foundUsers.map((user) => (
                 <div key={user.id} className="brutalist-panel p-3 bg-black flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white/10 border border-white flex items-center justify-center shrink-0">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover grayscale" />
+                    <div className="w-12 h-12 bg-white/10 border border-white flex items-center justify-center shrink-0 overflow-hidden">
+                      {formatAvatarUrl(user.avatar) ? (
+                        <img src={formatAvatarUrl(user.avatar)} alt={user.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="font-mono font-bold text-white text-lg">{user.name.charAt(0)}</span>
+                        <span className="font-mono font-bold text-white text-lg">{user.name.charAt(0).toUpperCase()}</span>
                       )}
                     </div>
                     <div>
                       <p className="text-white font-bold tracking-widest uppercase text-sm">{user.name}</p>
-                      <p className="text-secondary font-mono text-[10px] uppercase tracking-widest flex items-center gap-1 mt-1">
-                        <CheckCircle2 className="w-3 h-3" /> VERIFIED
+                      <p className="text-emerald-400 font-mono text-[10px] uppercase tracking-widest flex items-center gap-1 mt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> @{user.username}
                       </p>
                     </div>
                   </div>
-                  <button className="bg-white text-black font-mono font-bold uppercase text-xs px-4 py-2 border-2 border-white hover:bg-black hover:text-white transition-colors flex items-center gap-2">
-                    <UserPlus className="w-4 h-4" />
-                    <span>CONNECT</span>
+                  <button 
+                    onClick={() => router.push(`/user/${user.username}`)}
+                    className="bg-white text-black font-mono font-bold uppercase text-xs px-4 py-2 border-2 border-white hover:bg-black hover:text-white transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>VIEW PROFILE</span>
                   </button>
                 </div>
               ))

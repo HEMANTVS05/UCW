@@ -18,6 +18,10 @@ env/
 ENV/
 *.pytest_cache/
 
+# Backend Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Testing
 /coverage
 
