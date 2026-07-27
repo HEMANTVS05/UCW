@@ -48,11 +48,22 @@ A full-stack social and networking web application built with **Next.js (App Rou
 │   ├── database.py          # SQLAlchemy PostgreSQL database session engine
 │   ├── models.py            # SQLAlchemy database models (User, Connection, Notification)
 │   ├── schemas.py           # Pydantic request & response validation schemas
+│   ├── storage_client.py    # Python HTTP client for Go storage engine microservice (Port 8081)
 │   ├── verify_all_tables.py # PostgreSQL database schema auto-patching script
 │   ├── migrate_db.py        # Database creation and column migration script
 │   ├── uploads/             # Server disk storage for uploaded profile & banner images
 │   ├── .gitignore           # Backend gitignore rules
 │   └── requirements.txt     # Python backend dependencies
+├── storage-engine/          # High-performance Go Pebble/RocksDB encrypted message daemon
+│   ├── cmd/
+│   │   └── main.go          # Go HTTP daemon entrypoint (Port 8081)
+│   ├── internal/
+│   │   └── storage/
+│   │       └── rocksdb.go   # LSM-Tree Pebble storage engine logic
+│   ├── data/
+│   │   └── rocksdb/         # WAL & SST storage files
+│   ├── go.mod
+│   └── go.sum
 ├── src/
 │   ├── app/
 │   │   ├── chats/           # Dedicated Chats Route (/chats)
@@ -131,13 +142,20 @@ npm install
 python backend/verify_all_tables.py
 ```
 
-### 4. Run FastAPI Backend Server (Terminal 1)
+### 4. Run Go Storage Engine Daemon (Terminal 1)
+```bash
+cd storage-engine
+go run cmd/main.go
+```
+> Listens on `http://localhost:8081` for encrypted message persistence.
+
+### 5. Run FastAPI Backend Server (Terminal 2)
 ```bash
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 > Verify server health by visiting `http://localhost:8000/api/health`.
 
-### 5. Run Next.js Frontend Server (Terminal 2)
+### 6. Run Next.js Frontend Server (Terminal 3)
 ```bash
 npm run dev
 ```
